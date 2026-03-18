@@ -180,50 +180,63 @@ if not st.session_state.logged_in:
     st.markdown("""
         <style>
         /* Global Background */
-        .stApp { background-color: #f2f5f7 !important; }
+        .stApp { background-color: #f8fafc !important; }
         #MainMenu, footer, header {visibility: hidden;}
 
-        /* Main Card Container - Target only the main horizontal layout */
+        /* Main Card Container */
         div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
             background-color: white !important;
-            border-radius: 16px !important;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
-            padding: 40px 20px !important;
+            border-radius: 20px !important;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.05) !important;
+            padding: 40px !important;
             max-width: 900px !important;
-            margin: auto !important;
+            margin: 5vh auto !important;
+            gap: 3rem !important; /* Forces a safe space between the form and image */
             align-items: center !important;
+        }
+
+        /* Responsive Title */
+        .main-title {
+            font-size: clamp(1.5rem, 4vw, 2rem); /* Shrinks automatically on small screens */
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 2rem;
+            line-height: 1.2;
+            font-family: 'Segoe UI', system-ui, sans-serif;
         }
 
         /* Clean Inputs */
         .stTextInput input {
             border: 1px solid #e2e8f0 !important;
-            border-radius: 8px !important;
-            padding: 12px 15px !important;
+            border-radius: 10px !important;
+            padding: 14px 16px !important;
             font-size: 1rem !important;
-            background-color: white !important;
+            background-color: #f8fafc !important;
+            color: #334155 !important;
         }
         .stTextInput input:focus {
-            border-color: #f4b429 !important;
-            box-shadow: 0 0 0 1px #f4b429 !important;
+            border-color: #f59e0b !important;
+            box-shadow: 0 0 0 2px rgba(245,158,11,0.1) !important;
+            background-color: white !important;
         }
 
         /* Yellow Sign In Button */
-        div[data-testid="stFormSubmitButton"] {
-            width: 100% !important;
-        }
+        div[data-testid="stFormSubmitButton"] { width: 100% !important; }
         div[data-testid="stFormSubmitButton"] > button {
             width: 100% !important;
-            background-color: #f4b429 !important;
+            background-color: #f59e0b !important;
             color: white !important;
             border: none !important;
-            border-radius: 8px !important;
-            padding: 12px !important;
-            font-size: 1.05rem !important;
+            border-radius: 10px !important;
+            padding: 14px !important;
+            font-size: 1.1rem !important;
             font-weight: 700 !important;
-            margin-top: 15px !important;
+            margin-top: 10px !important;
+            transition: 0.2s;
         }
         div[data-testid="stFormSubmitButton"] > button:hover {
-            background-color: #e0a020 !important;
+            background-color: #d97706 !important;
+            transform: translateY(-1px);
         }
 
         /* Remove form default borders */
@@ -233,41 +246,46 @@ if not st.session_state.logged_in:
             background-color: transparent !important;
         }
 
-        /* Checkbox color */
-        label[data-baseweb="checkbox"] {
-            color: #475569 !important;
-            font-weight: 500 !important;
-        }
+        /* Checkbox */
+        label[data-baseweb="checkbox"] { color: #64748b !important; font-weight: 500 !important; }
         
-        /* Forgot Password Link Hover Effect */
+        /* Forgot Password Link */
         .forgot-pass-link {
-            color: #475569;
+            display: block;
+            text-align: center;
+            color: #0284c7; /* Blue color matching your screenshot */
             font-weight: 600;
             font-size: 0.95rem;
             text-decoration: none;
-            transition: color 0.2s;
+            margin-top: 20px;
+            transition: 0.2s;
         }
-        .forgot-pass-link:hover {
-            color: #f4b429;
+        .forgot-pass-link:hover { color: #0369a1; text-decoration: underline; }
+
+        /* Handle stacking cleanly on mobile/narrow windows */
+        @media (max-width: 768px) {
+            div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
+                padding: 25px !important;
+                gap: 2rem !important;
+            }
+            .main-title { text-align: center; }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1.2, 1], gap="large")
+    col1, col2 = st.columns([1.1, 1])
     
     with col1:
-        # Title
-        st.markdown("<h1 style='font-size: 1.9rem; font-weight: 800; color: #1e293b; margin-bottom: 30px; font-family: sans-serif;'>SIGN IN TO YOUR ACCOUNT</h1>", unsafe_allow_html=True)
+        st.markdown('<div class="main-title">SIGN IN TO YOUR ACCOUNT</div>', unsafe_allow_html=True)
         
-        # The Form
         with st.form("login_form"):
-            st.markdown("<span style='font-weight: 600; color: #334155;'>Email</span>", unsafe_allow_html=True)
+            st.markdown("<div style='font-weight: 600; color: #475569; margin-bottom: 6px; font-size: 0.95rem;'>Email</div>", unsafe_allow_html=True)
             username = st.text_input("Email", placeholder="example@email.com", label_visibility="collapsed")
             
-            st.markdown("<span style='font-weight: 600; color: #334155; display: inline-block; margin-top: 15px;'>Password</span>", unsafe_allow_html=True)
+            st.markdown("<div style='font-weight: 600; color: #475569; margin-bottom: 6px; margin-top: 15px; font-size: 0.95rem;'>Password</div>", unsafe_allow_html=True)
             password = st.text_input("Password", type="password", placeholder="Min. 8 characters", label_visibility="collapsed")
             
-            st.write("") # spacing
+            st.write("") 
             remember = st.checkbox("Remember me", value=True)
             
             submit = st.form_submit_button("SIGN IN")
@@ -278,21 +296,24 @@ if not st.session_state.logged_in:
                 else:
                     st.error("Invalid credentials")
                     
-        # Placed perfectly below the SIGN IN button (outside the form)
-        st.markdown("<div style='text-align: center; margin-top: 15px;'><a href='#' class='forgot-pass-link'>Forgot password?</a></div>", unsafe_allow_html=True)
+        # Placed securely outside the form
+        st.markdown("<a href='#' class='forgot-pass-link'>Forgot password?</a>", unsafe_allow_html=True)
 
     with col2:
+        # Responsive image sizing using max-width and aspect-ratio
         html_content = """
-<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 20px;">
-    <img src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=600&auto=format&fit=crop" style="width: 260px; height: 320px; object-fit: cover; border-radius: 16px; box-shadow: 0 12px 25px rgba(0,0,0,0.25); margin-bottom: 35px;">
-    <p style="font-size: 1.1rem; color: #64748b; font-weight: 600; margin-bottom: 5px;">Learn and Grow Every Day</p>
-    <p style="font-size: 0.9rem; color: #94a3b8; font-weight: 500;">Powered by SLOG Solutions</p>
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+    <img src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=600&auto=format&fit=crop" 
+         style="width: 100%; max-width: 280px; aspect-ratio: 4/5; object-fit: cover; border-radius: 16px; box-shadow: 0 15px 30px rgba(0,0,0,0.15); margin-bottom: 30px;">
+    <p style="font-size: 1.15rem; color: #475569; font-weight: 700; margin-bottom: 4px;">Learn and Grow Every Day</p>
+    <p style="font-size: 0.95rem; color: #94a3b8; font-weight: 500; margin: 0;">Powered by SLOG Solutions</p>
 </div>
 """
         st.markdown(html_content, unsafe_allow_html=True)
 
 else:
     # --- 5. MAIN APP UI ---
+    # (Your generator code)
     st.set_page_config(page_title="Question Gen AI", layout="wide")
     
     with st.sidebar:
