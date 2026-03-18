@@ -8,6 +8,7 @@ from docx.oxml.ns import qn        # Needed for dynamic page numbers
 from groq import Groq
 import json
 import io
+import os
 
 # --- 1. INITIAL SESSION STATE ---
 if "logged_in" not in st.session_state:
@@ -18,12 +19,22 @@ if 'qp_bytes' not in st.session_state:
     st.session_state.current_sub_code = ""
 
 # --- 2. CONFIGURATION (Groq) ---
-if "GROQ_API_KEY" in st.secrets:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+# Check Render's Environment Variables first, then check local secrets
+api_key = os.environ.get("GROQ_API_KEY")
+
+# If it's not in the OS environment, try Streamlit's local secrets file
+if not api_key:
+    try:
+        api_key = st.secrets["GROQ_API_KEY"]
+    except (FileNotFoundError, KeyError):
+        api_key = None
+
+if api_key:
+    client = Groq(api_key=api_key)
 else:
     # We only show this error if the user is logged in
     if st.session_state.logged_in:
-        st.error("Please add GROQ_API_KEY to your secrets.toml")
+        st.error("Please add GROQ_API_KEY to Render Environment Variables or secrets.toml")
         st.stop()
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
