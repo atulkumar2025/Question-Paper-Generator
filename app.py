@@ -57,36 +57,44 @@ def get_llm_response(raw_text, config):
     - Branch: {config['branch_name']}
     
     Section Requirements:
-    1. Section A: Generate exactly {total_a} questions. 
+    1. Section A (EXACTLY {total_a} questions): 
        - SEQUENCING & FORMATTING (CRITICAL RULE):
-         1. First, generate EXACTLY {num_mcq} MCQs. You MUST include 4 options (A, B, C, D) directly inside the question text.
+         1. First, generate EXACTLY {num_mcq} MCQs. You MUST include 4 options (A, B, C, D). BOTH the question text AND all 4 options MUST be translated into Hindi.
          2. Next, generate EXACTLY {num_fill} Fill-in-the-blanks questions.
          3. Finally, generate EXACTLY {num_tf} True/False questions.
-       - DO NOT mix question types. Keep them strictly in the order above.
-       - Students will attempt {config['n_a']}. Difficulty: {config['diff_a']}.
+       - DO NOT mix question types.
        
-    2. Section B: Generate exactly {config['total_b']} questions. 
-       - Short answer types. Students attempt {config['n_b']}. Difficulty: {config['diff_b']}.
+    2. Section B (EXACTLY {config['total_b']} questions): 
+       - Short answer types.
        
-    3. Section C: Generate exactly {config['total_c']} questions. 
-       - Long answer/descriptive types. Students attempt {config['n_c']}. Difficulty: {config['diff_c']}.
+    3. Section C (EXACTLY {config['total_c']} questions): 
+       - Long answer/descriptive types.
     
-    CRITICAL RULES:
-    - Every question ("q") must be bilingual: [English Question] / [Hindi Translation].
-    - Every answer ("a") must be clear and accurate.
+    CRITICAL RULES (READ CAREFULLY):
+    - COUNT ENFORCEMENT: You are prone to stopping early. You MUST use the "id" field to count up to the EXACT number of requested questions for each section. Do NOT stop until Section C reaches exactly {config['total_c']} questions!
+    - BILINGUAL REQUIREMENT: Every single question ("q") and answer ("a") must be strictly bilingual: [English] / [Hindi]. For MCQs, the options MUST also be bilingual.
     - Return ONLY a valid JSON object.
     
     JSON Structure:
     {{
-        "section_a": [{{"q": "Q Text / प्रश्न \\n A) ... B) ... C) ... D) ...", "a": "Ans Text"}}, ...],
-        "section_b": [{{"q": "Q Text / प्रश्न", "a": "Ans Text"}}, ...],
-        "section_c": [{{"q": "Q Text / प्रश्न", "a": "Ans Text"}}, ...]
+        "section_a": [
+            {{"id": 1, "q": "Q Text / प्रश्न \\n A) English Option / हिंदी विकल्प \\n B) English Option / हिंदी विकल्प \\n C) English Option / हिंदी विकल्प \\n D) English Option / हिंदी विकल्प", "a": "Ans Text / उत्तर"}},
+            ... (keep counting up to {total_a})
+        ],
+        "section_b": [
+            {{"id": 1, "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            ... (keep counting up to {config['total_b']})
+        ],
+        "section_c": [
+            {{"id": 1, "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            ... (keep counting up to {config['total_c']})
+        ]
     }}
     """
     
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are an expert exam generator that outputs only JSON."},
+            {"role": "system", "content": "You are an expert exam generator that outputs only JSON. You strictly follow counting rules."},
             {"role": "user", "content": prompt}
         ],
         model=GROQ_MODEL,
