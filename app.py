@@ -52,17 +52,20 @@ def get_llm_response(raw_text, config):
     prompt = f"""
     Act as an academic expert and exam controller. Based on this source material: {raw_text[:15000]}
     
-    Create a professional bilingual examination paper:
+    Create a highly unique, randomized bilingual examination paper:
     - Subject: {config['subject_name']} ({config['subject_code']})
     - Branch: {config['branch_name']}
     
+    CRITICAL VARIETY RULE: 
+    Select a highly diverse and random set of concepts from the text. DO NOT generate the most obvious questions. Dig deep into the material to ensure these questions are uniquely different from previous papers.
+    
     Section Requirements:
     1. Section A (EXACTLY {total_a} questions): 
-       - SEQUENCING & FORMATTING (CRITICAL RULE):
-         1. First, generate EXACTLY {num_mcq} MCQs. You MUST include 4 options (A, B, C, D). BOTH the question text AND all 4 options MUST be translated into Hindi.
-         2. Next, generate EXACTLY {num_fill} Fill-in-the-blanks questions.
-         3. Finally, generate EXACTLY {num_tf} True/False questions.
-       - DO NOT mix question types.
+       - SEQUENCING (STRICT RULE):
+         1. The first {num_mcq} questions MUST be "MCQ". You must include 4 bilingual options (A, B, C, D).
+         2. The next {num_fill} questions MUST be "Fill".
+         3. The final {num_tf} questions MUST be "TF".
+       - You MUST use the "type" field to track this sequence. DO NOT mix them!
        
     2. Section B (EXACTLY {config['total_b']} questions): 
        - Short answer types.
@@ -70,23 +73,27 @@ def get_llm_response(raw_text, config):
     3. Section C (EXACTLY {config['total_c']} questions): 
        - Long answer/descriptive types.
     
-    CRITICAL RULES (READ CAREFULLY):
-    - COUNT ENFORCEMENT: You are prone to stopping early. You MUST use the "id" field to count up to the EXACT number of requested questions for each section. Do NOT stop until Section C reaches exactly {config['total_c']} questions!
-    - BILINGUAL REQUIREMENT: Every single question ("q") and answer ("a") must be strictly bilingual: [English] / [Hindi]. For MCQs, the options MUST also be bilingual.
+    CRITICAL RULES:
+    - COUNT ENFORCEMENT: Use the "id" field to track your count. Do NOT stop early.
+    - BILINGUAL REQUIREMENT: Every question ("q") and answer ("a") must be strictly bilingual: [English] / [Hindi].
     - Return ONLY a valid JSON object.
     
     JSON Structure:
     {{
         "section_a": [
-            {{"id": 1, "q": "Q Text / प्रश्न \\n A) English Option / हिंदी विकल्प \\n B) English Option / हिंदी विकल्प \\n C) English Option / हिंदी विकल्प \\n D) English Option / हिंदी विकल्प", "a": "Ans Text / उत्तर"}},
-            ... (keep counting up to {total_a})
+            {{"id": 1, "type": "MCQ", "q": "Q Text / प्रश्न \\n A) English / हिंदी \\n B) English / हिंदी \\n C) English / हिंदी \\n D) English / हिंदी", "a": "Ans Text / उत्तर"}},
+            ... (finish all MCQs),
+            {{"id": {num_mcq + 1}, "type": "Fill", "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            ... (finish all Fill-in-the-blanks),
+            {{"id": {num_mcq + num_fill + 1}, "type": "TF", "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            ... (finish all True/False)
         ],
         "section_b": [
-            {{"id": 1, "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            {{"id": 1, "type": "Short", "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
             ... (keep counting up to {config['total_b']})
         ],
         "section_c": [
-            {{"id": 1, "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
+            {{"id": 1, "type": "Long", "q": "Q Text / प्रश्न", "a": "Ans Text / उत्तर"}},
             ... (keep counting up to {config['total_c']})
         ]
     }}
@@ -94,11 +101,14 @@ def get_llm_response(raw_text, config):
     
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are an expert exam generator that outputs only JSON. You strictly follow counting rules."},
+            {"role": "system", "content": "You are an expert exam generator. You strictly follow counting, strict sequencing, and guarantee maximum randomness/variety in your questions."},
             {"role": "user", "content": prompt}
         ],
         model=GROQ_MODEL,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
+        temperature=0.85,
+        presence_penalty=0.6,
+        max_tokens=8000     # <-- THE MAGIC FIX: Gives the AI enough room to finish Section C
     )
     return json.loads(chat_completion.choices[0].message.content)
 
