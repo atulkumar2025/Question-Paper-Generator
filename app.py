@@ -311,7 +311,7 @@ if not st.session_state.logged_in:
             """, unsafe_allow_html=True)
             
             if submit:
-                if username == "admin" and password == "slog2026":
+                if username == "slogsolutions" and password == "slog2026":
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
