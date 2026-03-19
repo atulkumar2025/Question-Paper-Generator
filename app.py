@@ -3,8 +3,8 @@ import fitz  # PyMuPDF
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
-from docx.oxml import OxmlElement  # Needed for dynamic page numbers
-from docx.oxml.ns import qn        # Needed for dynamic page numbers
+from docx.oxml import OxmlElement 
+from docx.oxml.ns import qn        
 from groq import Groq
 import json
 import io
@@ -19,10 +19,8 @@ if 'qp_bytes' not in st.session_state:
     st.session_state.current_sub_code = ""
 
 # --- 2. CONFIGURATION (Groq) ---
-# Check Render's Environment Variables first, then check local secrets
 api_key = os.environ.get("GROQ_API_KEY")
 
-# If it's not in the OS environment, try Streamlit's local secrets file
 if not api_key:
     try:
         api_key = st.secrets["GROQ_API_KEY"]
@@ -32,7 +30,6 @@ if not api_key:
 if api_key:
     client = Groq(api_key=api_key)
 else:
-    # We only show this error if the user is logged in
     if st.session_state.logged_in:
         st.error("Please add GROQ_API_KEY to Render Environment Variables or secrets.toml")
         st.stop()
@@ -46,11 +43,11 @@ def extract_text_from_pdf(uploaded_file):
     return text
 
 def get_llm_response(raw_text, config):
-    # Calculate exact question counts for Section A based on the 30/30/40 ratio
+    # Retrieve the user-defined exact question counts
     total_a = config['total_a']
-    num_mcq = int(round(total_a * 0.30))    # 30% MCQs
-    num_tf = int(round(total_a * 0.30))     # 30% True/False
-    num_fill = total_a - num_mcq - num_tf   # 40% Fill-ups (math ensures the total is exact)
+    num_mcq = config['num_mcq']
+    num_tf = config['num_tf']
+    num_fill = config['num_fill']
 
     prompt = f"""
     Act as an academic expert and exam controller. Based on this source material: {raw_text[:15000]}
@@ -61,7 +58,11 @@ def get_llm_response(raw_text, config):
     
     Section Requirements:
     1. Section A: Generate exactly {total_a} questions. 
-       - EXACT BREAKDOWN: Generate {num_mcq} MCQs, {num_fill} Fill-in-the-blanks, and {num_tf} True/False questions.
+       - SEQUENCING & FORMATTING (CRITICAL RULE):
+         1. First, generate EXACTLY {num_mcq} MCQs. You MUST include 4 options (A, B, C, D) directly inside the question text.
+         2. Next, generate EXACTLY {num_fill} Fill-in-the-blanks questions.
+         3. Finally, generate EXACTLY {num_tf} True/False questions.
+       - DO NOT mix question types. Keep them strictly in the order above.
        - Students will attempt {config['n_a']}. Difficulty: {config['diff_a']}.
        
     2. Section B: Generate exactly {config['total_b']} questions. 
@@ -77,7 +78,7 @@ def get_llm_response(raw_text, config):
     
     JSON Structure:
     {{
-        "section_a": [{{"q": "Q Text / प्रश्न", "a": "Ans Text"}}, ...],
+        "section_a": [{{"q": "Q Text / प्रश्न \\n A) ... B) ... C) ... D) ...", "a": "Ans Text"}}, ...],
         "section_b": [{{"q": "Q Text / प्रश्न", "a": "Ans Text"}}, ...],
         "section_c": [{{"q": "Q Text / प्रश्न", "a": "Ans Text"}}, ...]
     }}
@@ -114,15 +115,12 @@ def create_word_files(data, config):
         doc.add_paragraph("_" * 40).alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     def add_custom_footer(doc, sub_code):
-        # Access the footer of the document
         section = doc.sections[0]
         footer = section.footer
         p = footer.paragraphs[0]
         
-        # Word's default footer style has a center tab and a right tab
         p.text = f"{sub_code}\tPage "
         
-        # Add dynamic Page Number XML
         run = p.add_run()
         fldChar1 = OxmlElement('w:fldChar')
         fldChar1.set(qn('w:fldCharType'), 'begin')
@@ -144,30 +142,36 @@ def create_word_files(data, config):
                 ("B / भाग - ख", "section_b", config['n_b'], config['m_b']),
                 ("C / भाग - ग", "section_c", config['n_c'], config['m_c'])]
     
+    q_counter = 1
+    
     for label, key, req_count, sec_marks in sections:
-        # Create heading and center it
         h = q_doc.add_heading(f"SECTION-{label}", level=1)
         h.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         q_doc.add_paragraph(f"Note: Attempt any {req_count} questions. (Total Marks: {sec_marks})").italic = True
-        for i, item in enumerate(data[key], 1):
-            q_doc.add_paragraph(f"{i}. {item['q']}", style='List Number')
+        
+        for item in data[key]:
+            q_doc.add_paragraph(f"Q{q_counter}. {item['q']}")
+            q_counter += 1
             
     add_custom_footer(q_doc, config['subject_code'])
 
     # --- 2. Generate Answer Key ---
     a_doc = Document()
     add_header(a_doc, is_ans=True)
+    
+    a_counter = 1
+    
     for label, key, _, _ in sections:
-        # Create heading and center it
         h = a_doc.add_heading(f"Answers: SECTION-{label}", level=1)
         h.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        for i, item in enumerate(data[key], 1):
+        for item in data[key]:
             p = a_doc.add_paragraph()
-            p.add_run(f"Q{i}: ").bold = True
+            p.add_run(f"Q{a_counter}: ").bold = True
             p.add_run(item['q'])
             a_doc.add_paragraph(f"Ans: {item['a']}")
+            a_counter += 1
             
     add_custom_footer(a_doc, config['subject_code'])
     
@@ -179,143 +183,146 @@ if not st.session_state.logged_in:
     
     st.markdown("""
         <style>
-        /* Global Background */
-        .stApp { background-color: #f8fafc !important; }
         #MainMenu, footer, header {visibility: hidden;}
 
-        /* Main Card Container */
-        div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
-            background-color: white !important;
-            border-radius: 20px !important;
-            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.05) !important;
-            padding: 40px !important;
-            max-width: 900px !important;
-            margin: 5vh auto !important;
-            gap: 3rem !important; /* Forces a safe space between the form and image */
-            align-items: center !important;
+        .stApp {
+            background-image: url("https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=2400&auto=format&fit=crop") !important;
+            background-size: cover !important;
+            background-position: center !important;
+            background-attachment: fixed !important;
         }
 
-        /* Responsive Title */
+        .main .block-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 0 !important;
+        }
+
+        div[data-testid="stForm"] {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+            padding: 50px 40px !important;
+            width: 100% !important;
+            max-width: 400px !important;
+            margin: auto !important;
+            border: none !important;
+            backdrop-filter: blur(10px);
+        }
+
         .main-title {
-            font-size: clamp(1.5rem, 4vw, 2rem); /* Shrinks automatically on small screens */
+            text-align: center;
+            font-size: 2.2rem;
             font-weight: 800;
-            color: #0f172a;
-            margin-bottom: 2rem;
-            line-height: 1.2;
+            color: #4c1d95; 
+            margin-bottom: 2.5rem;
             font-family: 'Segoe UI', system-ui, sans-serif;
         }
 
-        /* Clean Inputs */
         .stTextInput input {
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 10px !important;
-            padding: 14px 16px !important;
+            border: 2px solid #f1f5f9 !important;
+            border-radius: 30px !important;
+            padding: 16px 25px !important;
             font-size: 1rem !important;
-            background-color: #f8fafc !important;
+            font-weight: 500 !important;
+            background-color: white !important;
             color: #334155 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+        }
+        .stTextInput input::placeholder {
+            color: #94a3b8 !important;
+            font-weight: 600 !important;
         }
         .stTextInput input:focus {
-            border-color: #f59e0b !important;
-            box-shadow: 0 0 0 2px rgba(245,158,11,0.1) !important;
-            background-color: white !important;
+            border-color: #a855f7 !important;
+            box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.15) !important;
         }
 
-        /* Yellow Sign In Button */
-        div[data-testid="stFormSubmitButton"] { width: 100% !important; }
+        div[data-testid="stFormSubmitButton"] {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            margin-top: 15px !important;
+        }
         div[data-testid="stFormSubmitButton"] > button {
-            width: 100% !important;
-            background-color: #f59e0b !important;
+            width: 70% !important;
+            background: linear-gradient(135deg, #a855f7, #8b5cf6) !important;
             color: white !important;
             border: none !important;
-            border-radius: 10px !important;
+            border-radius: 30px !important;
             padding: 14px !important;
             font-size: 1.1rem !important;
             font-weight: 700 !important;
-            margin-top: 10px !important;
-            transition: 0.2s;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.4) !important;
         }
         div[data-testid="stFormSubmitButton"] > button:hover {
-            background-color: #d97706 !important;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 20px -3px rgba(139, 92, 246, 0.5) !important;
         }
 
-        /* Remove form default borders */
-        div[data-testid="stForm"] {
-            border: none !important;
-            padding: 0 !important;
-            background-color: transparent !important;
+        .form-links {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 25px;
+            padding: 0 15px;
         }
-
-        /* Checkbox */
-        label[data-baseweb="checkbox"] { color: #64748b !important; font-weight: 500 !important; }
-        
-        /* Forgot Password Link */
-        .forgot-pass-link {
-            display: block;
-            text-align: center;
-            color: #0284c7; /* Blue color matching your screenshot */
+        .form-links a {
+            color: #64748b;
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             text-decoration: none;
-            margin-top: 20px;
-            transition: 0.2s;
+            transition: color 0.2s;
         }
-        .forgot-pass-link:hover { color: #0369a1; text-decoration: underline; }
+        .form-links a:hover { color: #8b5cf6; }
 
-        /* Handle stacking cleanly on mobile/narrow windows */
-        @media (max-width: 768px) {
-            div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
-                padding: 25px !important;
-                gap: 2rem !important;
-            }
-            .main-title { text-align: center; }
+        .powered-by {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-top: 30px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6); 
+            letter-spacing: 0.5px;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1.1, 1])
+    c1, c2, c3 = st.columns([1, 2, 1])
     
-    with col1:
-        st.markdown('<div class="main-title">SIGN IN TO YOUR ACCOUNT</div>', unsafe_allow_html=True)
-        
+    with c2:
         with st.form("login_form"):
-            st.markdown("<div style='font-weight: 600; color: #475569; margin-bottom: 6px; font-size: 0.95rem;'>Email</div>", unsafe_allow_html=True)
-            username = st.text_input("Email", placeholder="example@email.com", label_visibility="collapsed")
+            st.markdown('<div class="main-title">Sign In</div>', unsafe_allow_html=True)
             
-            st.markdown("<div style='font-weight: 600; color: #475569; margin-bottom: 6px; margin-top: 15px; font-size: 0.95rem;'>Password</div>", unsafe_allow_html=True)
-            password = st.text_input("Password", type="password", placeholder="Min. 8 characters", label_visibility="collapsed")
-            
+            username = st.text_input("Username", placeholder="username or email", label_visibility="collapsed")
             st.write("") 
-            remember = st.checkbox("Remember me", value=True)
+            password = st.text_input("Password", type="password", placeholder="password", label_visibility="collapsed")
             
             submit = st.form_submit_button("SIGN IN")
+            
+            st.markdown("""
+                <div class="form-links">
+                    <a href="#">Forgot password?</a>
+                    <a href="#">Sign Up</a>
+                </div>
+            """, unsafe_allow_html=True)
+            
             if submit:
                 if username == "admin" and password == "slog2026":
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
                     st.error("Invalid credentials")
-                    
-        # Placed securely outside the form
-        st.markdown("<a href='#' class='forgot-pass-link'>Forgot password?</a>", unsafe_allow_html=True)
 
-    with col2:
-        # Responsive image sizing using max-width and aspect-ratio
-        html_content = """
-<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-    <img src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=600&auto=format&fit=crop" 
-         style="width: 100%; max-width: 280px; aspect-ratio: 4/5; object-fit: cover; border-radius: 16px; box-shadow: 0 15px 30px rgba(0,0,0,0.15); margin-bottom: 30px;">
-    <p style="font-size: 1.15rem; color: #475569; font-weight: 700; margin-bottom: 4px;">Learn and Grow Every Day</p>
-    <p style="font-size: 0.95rem; color: #94a3b8; font-weight: 500; margin: 0;">Powered by SLOG Solutions</p>
-</div>
-"""
-        st.markdown(html_content, unsafe_allow_html=True)
+        st.markdown('<div class="powered-by">Powered by SLOG Solutions</div>', unsafe_allow_html=True)
 
 else:
     # --- 5. MAIN APP UI ---
-    # (Your generator code)
     st.set_page_config(page_title="Question Gen AI", layout="wide")
-    
+
     with st.sidebar:
         if st.button("Logout"):
             st.session_state.logged_in = False
@@ -338,7 +345,17 @@ else:
         st.markdown("### Section A/ भाग - क")
         n_a = st.number_input("Questions to Attempt", 1, 30, 10, key="n_a_input")
         m_a = st.number_input("Section Marks", 1, 100, 10, key="m_a_input")
-        total_a = st.number_input("Total Questions", n_a, n_a+10, n_a+2, key="t_a_input")
+        
+        # ---  UI FOR SECTION A BREAKDOWN ---
+        st.markdown("##### ⚙️ Question Breakdown")
+        num_mcq = st.number_input("Number of MCQs", 0, 30, 4, key="mcq_input")
+        num_fill = st.number_input("Number of Fill-ups", 0, 30, 4, key="fill_input")
+        num_tf = st.number_input("Number of True/False", 0, 30, 4, key="tf_input")
+        
+        # Calculate Total automatically
+        total_a = num_mcq + num_fill + num_tf
+        st.info(f"**Total Section A Questions:** {total_a}")
+        
         diff_a = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], key="d_a_input")
 
     with col2:
@@ -367,7 +384,11 @@ else:
                 "title": title, "branch_name": branch, "branch_code": b_code,
                 "sem": sem, "subject_name": sub_name, "subject_code": sub_code,
                 "duration": duration, "total_marks": m_a + m_b + m_c,
+                
+                # We now pass the specific breakdown alongside the total
                 "n_a": n_a, "m_a": m_a, "total_a": total_a, "diff_a": diff_a,
+                "num_mcq": num_mcq, "num_fill": num_fill, "num_tf": num_tf,
+                
                 "n_b": n_b, "m_b": m_b, "total_b": total_b, "diff_b": diff_b,
                 "n_c": n_c, "m_c": m_c, "total_c": total_c, "diff_c": diff_c
             }
