@@ -25,7 +25,9 @@ A robust, AI-powered web application built with Streamlit and Groq. This tool al
 * **Deployment:** Render
 
 ## 🚀 Live Demo
-*(You can place your live Render URL here, e.g., https://slog-exam-portal.onrender.com)*
+*([](https://question-paper-generator-guxz.onrender.com/#e6df8a39))*
+   Username : slogsolutions 
+   Password : slog2026
 
 ---
 
@@ -37,23 +39,23 @@ To run this project on your local machine, follow these steps:
 ```bash
 git clone [https://github.com/yourusername/slog-exam-generator.git](https://github.com/yourusername/slog-exam-generator.git)
 cd slog-exam-generator
-2. Install dependencies
+
+**2. Install dependencies**
 Ensure you have Python 3.11+ installed. Run the following command:
 
 Bash
 pip install -r requirements.txt
-3. Set up Environment Variables
-Create a hidden folder and file for your API key:
 
+**3. Set up Environment Variables**
+Create a hidden folder and file for your API key:
 Bash
 mkdir .streamlit
 touch .streamlit/secrets.toml
 Open secrets.toml and add your Groq API Key:
-
 Ini, TOML
 GROQ_API_KEY = "gsk_your_api_key_here"
-4. Run the Application
 
+**4. Run the Application**
 Bash
 streamlit run app.py
 ☁️ Deployment on Render
@@ -91,5 +93,3 @@ Click Generate Question Paper & Answer Key.
 Wait for the AI to process and compile the documents.
 
 Download your .docx files!
-
-Powered by SLOG Solutions
