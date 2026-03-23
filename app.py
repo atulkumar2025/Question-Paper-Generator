@@ -43,7 +43,7 @@ def extract_text_from_pdf(uploaded_file):
     return text
 
 def get_llm_response(raw_text, config):
-    # Retrieve the user-defined exact question counts
+    # Retrieve the exact question counts
     total_a = config['total_a']
     num_mcq = config['num_mcq']
     num_tf = config['num_tf']
@@ -108,7 +108,7 @@ def get_llm_response(raw_text, config):
         response_format={"type": "json_object"},
         temperature=0.85,
         presence_penalty=0.6,
-        max_tokens=8000     # <-- THE MAGIC FIX: Gives the AI enough room to finish Section C
+        max_tokens=8000     
     )
     return json.loads(chat_completion.choices[0].message.content)
 
@@ -341,11 +341,21 @@ else:
     # --- 5. MAIN APP UI ---
     st.set_page_config(page_title="Question Gen AI", layout="wide")
 
+    # --- CSS TO REMOVE TOP WHITESPACE ---
+    st.markdown("""
+        <style>
+            /* Reduces the default white space at the top of the main page and sidebar */
+            .block-container {
+                padding-top: 1.5rem !important; 
+                padding-bottom: 1rem !important;
+            }
+            /* Hides the default Streamlit header bar to save more space */
+            header {visibility: hidden;} 
+        </style>
+    """, unsafe_allow_html=True)
+
+    # --- SIDEBAR REORGANIZATION ---
     with st.sidebar:
-        if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.rerun()
-        st.divider()
         st.header("📌 Paper Details")
         title = st.text_input("Title", "")
         branch = st.text_input("Branch Name", "")
@@ -355,36 +365,48 @@ else:
         sub_code = st.text_input("Subject Code", "")
         duration = st.text_input("Duration(Hrs)", "")
 
-    st.title("🎓 Question Paper & Answer Key Generator")
-    st.subheader("Powered by SLOG Solutions")
+        # Pushing the Logout button to the bottom
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.divider()
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    # --- COMPACT HEADER ---
+    st.markdown("<h2 style='margin-top: -20px;'>🎓 Question Paper & Answer Key Generator <span style='font-size:18px; color:gray;'><br>Powered by SLOG Solutions</span></h2>", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.markdown("### Section A/ भाग - क")
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 600; color: #1e293b; margin-bottom: 10px;'>Section A/ भाग - क</div>", unsafe_allow_html=True)
         n_a = st.number_input("Questions to Attempt", 1, 30, 10, key="n_a_input")
         m_a = st.number_input("Section Marks", 1, 100, 10, key="m_a_input")
         
-        # ---  UI FOR SECTION A BREAKDOWN ---
-        st.markdown("##### ⚙️ Question Breakdown")
         num_mcq = st.number_input("Number of MCQs", 0, 30, 4, key="mcq_input")
         num_fill = st.number_input("Number of Fill-ups", 0, 30, 4, key="fill_input")
         num_tf = st.number_input("Number of True/False", 0, 30, 4, key="tf_input")
         
         # Calculate Total automatically
         total_a = num_mcq + num_fill + num_tf
-        st.info(f"**Total Section A Questions:** {total_a}")
+        
+        # --- COMPACT INFO BOX ---
+        st.markdown(f"""
+            <div style="background-color: #e6f3ff; padding: 8px 12px; border-radius: 6px; color: #0056b3; font-size: 0.9rem; margin-bottom: 1rem; border-left: 4px solid #0056b3;">
+                <b>Total Section A Questions:</b> {total_a}
+            </div>
+        """, unsafe_allow_html=True)
         
         diff_a = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], key="d_a_input")
 
     with col2:
-        st.markdown("### Section B/ भाग - ख")
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 600; color: #1e293b; margin-bottom: 10px;'>Section B/ भाग - ख</div>", unsafe_allow_html=True)
         n_b = st.number_input("Questions to Attempt", 1, 30, 5, key="n_b_input")
         m_b = st.number_input("Section Marks", 1, 100, 15, key="m_b_input")
         total_b = st.number_input("Total Questions", n_b, n_b+10, n_b+2, key="t_b_input")
         diff_b = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1, key="d_b_input")
 
     with col3:
-        st.markdown("### Section C/ भाग - ग")
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 600; color: #1e293b; margin-bottom: 10px;'>Section C/ भाग - ग</div>", unsafe_allow_html=True)
         n_c = st.number_input("Questions to Attempt", 1, 30, 5, key="n_c_input")
         m_c = st.number_input("Section Marks", 1, 100, 25, key="m_c_input")
         total_c = st.number_input("Total Questions", n_c, n_c+10, n_c+2, key="t_c_input")
@@ -403,7 +425,6 @@ else:
                 "sem": sem, "subject_name": sub_name, "subject_code": sub_code,
                 "duration": duration, "total_marks": m_a + m_b + m_c,
                 
-                # We now pass the specific breakdown alongside the total
                 "n_a": n_a, "m_a": m_a, "total_a": total_a, "diff_a": diff_a,
                 "num_mcq": num_mcq, "num_fill": num_fill, "num_tf": num_tf,
                 
